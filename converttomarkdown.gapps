@@ -75,41 +75,32 @@ function ConvertToMarkdownFile() {
   
   // Create folder
   var id = DocumentApp.getActiveDocument().getId();
-  var file = DocsList.getFileById(id);
+  var file = DriveApp.getFileById(id);
   var parents = file.getParents();
   
-  if(parents.length > 1) {
-    Logger.log("File has multiple parent directory. Script does not work in this case"); 
-    DocumentApp.getUi().alert("Document must not be in multiple directories");
-    return; 
-  }
-  
-  if(parents.length == 0) {
+  if(! parents.hasNext()) {
     DocumentApp.getUi().alert("Document has to be in a directory for the export"); 
     return; 
   }
   
   // Use first parent
-  var parent = parents[0];
+  var parent = parents.next();
   
   // Check if target folder exists  
-  for(var folder in parent.getFolders()) {
-    folder = parent.getFolders()[folder]; 
-    
-    if(folder.getName() == 'target') {
-      var ui = DocumentApp.getUi(); 
-      var result = ui.alert(
-        'Existing target folder found!',
-        'Delete all contents of target folder?',
-        ui.ButtonSet.YES_NO);
-      if(result == ui.Button.YES) {
-        Logger.log("Trashing target folder..."); 
-        folder.setTrashed(true); 
-        break; 
-      } else {
-        Logger.log("Do not delete target folder, stopping!"); 
-        return; 
-      }
+  var iter = parent.getFoldersByName('target');
+  if (iter.hasNext()) {
+    var folder = iter.next();
+    var ui = DocumentApp.getUi(); 
+    var result = ui.alert(
+      'Existing target folder found!',
+      'Delete all contents of target folder?',
+      ui.ButtonSet.YES_NO);
+    if(result == ui.Button.YES) {
+      Logger.log("Trashing target folder..."); 
+      folder.setTrashed(true); 
+    } else {
+      Logger.log("Do not delete target folder, stopping!"); 
+      return; 
     }
   }
   
@@ -322,7 +313,7 @@ function handleText(doc, state) {
       if (i > 0 && attrs[i-1] == index - 1 && doc.getLinkUrl(attrs[i-1]) === url) {
         i -= 1;
         index = attrs[i];
-        url = txt.getLinkUrl(off);
+        url = doc.getLinkUrl(index);
       }
       formatted = formatted.substring(0, index) + '[' + formatted.substring(index, lastIndex) + '](' + url + ')' + formatted.substring(lastIndex);
       
@@ -544,8 +535,9 @@ function processElement(element, state, depth) {
       if(prefix.length > 0)
         prefix += ' ';
       
-      // Push prefix
-      textElements.push(prefix);
+      // Push prefix if there is any text following it
+      if(element.getText().length > 0)
+        textElements.push(prefix);
       
       // Process childs
       textElements = textElements.concat(processChilds(element, state, depth));
